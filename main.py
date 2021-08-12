@@ -55,10 +55,10 @@ SPACE = pygame.transform.scale(pygame.image.load(
     os.path.join('Assets', 'space.png')), (WIDTH, HEIGHT))
 
 
-def draw_window(red, yellow, red_bullets, yellow_bullets, red_health, yellow_health):
+def draw_window(red, yellow, red_bullets, yellow_bullets, red_health, yellow_health, rect_ai):
     WIN.blit(SPACE, (0, 0))
     pygame.draw.rect(WIN, BLACK, BORDER)
-
+    pygame.draw.rect(WIN, WHITE, rect_ai)
     red_health_text = HEALTH_FONT.render(
         "Health: " + str(red_health), 1, WHITE)
     yellow_health_text = HEALTH_FONT.render(
@@ -78,14 +78,14 @@ def draw_window(red, yellow, red_bullets, yellow_bullets, red_health, yellow_hea
     pygame.display.update()
 
 
-def yellow_handle_movement(yellow, choose_direction):
-    if choose_direction == 1 and yellow.x - VEL_AI > 0:  # LEFT
+def yellow_handle_movement(yellow, choose_direction_x, choose_direction_y):
+    if choose_direction_x == 1 and yellow.x - VEL_AI > 0:  # LEFT
         yellow.x -= VEL_AI
-    if choose_direction == 2 and yellow.x + VEL_AI + yellow.width < BORDER.x:  # RIGHT
+    if choose_direction_x == 2 and yellow.x + VEL_AI + yellow.width < BORDER.x:  # RIGHT
         yellow.x += VEL_AI
-    if choose_direction == 3 and yellow.y - VEL_AI > 0:  # UP
+    if choose_direction_y == 3 and yellow.y - VEL_AI > 0:  # UP
         yellow.y -= VEL_AI
-    if choose_direction == 4 and yellow.y + VEL_AI + yellow.height < HEIGHT - 15:  # DOWN
+    if choose_direction_y == 4 and yellow.y + VEL_AI + yellow.height < HEIGHT - 15:  # DOWN
         yellow.y += VEL_AI
 
 
@@ -100,7 +100,7 @@ def red_handle_movement(keys_pressed, red):
         red.y += VEL
 
 
-def handle_bullets(yellow_bullets, red_bullets, yellow, red):
+def handle_bullets(yellow_bullets, red_bullets, yellow, red, rect_ai):
     for bullet in yellow_bullets:
         bullet.x += BULLET_VEL
         if red.colliderect(bullet):
@@ -116,6 +116,19 @@ def handle_bullets(yellow_bullets, red_bullets, yellow, red):
             red_bullets.remove(bullet)
         elif bullet.x < 0:
             red_bullets.remove(bullet)
+        if rect_ai.colliderect(bullet):
+            choose_direction_y = 0
+            if bullet.y > yellow.y:
+                if yellow.y < 20:
+                    choose_direction_y = 3
+                else:
+                    choose_direction_y = 4
+            elif bullet.y < yellow.y:
+                if yellow.y < SPACESHIP_WIDTH + 20:
+                    choose_direction_y = 4
+                else:
+                    choose_direction_y = 3
+            yellow_handle_movement(yellow, 0, choose_direction_y)
 
 
 def draw_winner(text):
@@ -128,8 +141,12 @@ def draw_winner(text):
 
 def main():
     red = pygame.Rect(700, 300, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
-    yellow = pygame.Rect(100, 300, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
-
+    yellow = pygame.Rect(200, 200, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
+    RECT_MULTIPLY = 5
+    x_formula = yellow.x - SPACESHIP_HEIGHT * (RECT_MULTIPLY - 1) / 2
+    y_formula = yellow.y - SPACESHIP_WIDTH * (RECT_MULTIPLY - 1) / 2
+    rect_ai = pygame.Rect(x_formula, y_formula,
+                          SPACESHIP_HEIGHT * RECT_MULTIPLY, SPACESHIP_WIDTH * RECT_MULTIPLY)
     red_bullets = []
     yellow_bullets = []
 
@@ -137,11 +154,11 @@ def main():
 
     last_shot = 0
     tick_number = 0
-    choose_direction = 1
     red_health = 10
     yellow_health = 10
 
-    while True:
+    run = True
+    while run:
         clock.tick(FPS)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -173,7 +190,30 @@ def main():
                 last_shot = 0
 
         if tick_number % 10 == 0:
-            choose_direction = random.randint(1, 4)
+            if random.randint(1, 3) == (1, 2):
+                if red.y < yellow.y:
+                    if yellow.y < 20:
+                        choose_direction_y = 4
+                    else:
+                        choose_direction_y = 3
+                elif red.y > yellow.y:
+                    if yellow.y < SPACESHIP_WIDTH + 20:
+                        choose_direction_y = 3
+                    else:
+                        choose_direction_y = 4
+            else:
+                choose_direction_y = random.randint(1, 4)
+
+            choose_direction_x = random.randint(1, 4)
+
+        keys_pressed = pygame.key.get_pressed()
+        yellow_handle_movement(yellow, choose_direction_x, choose_direction_y)
+        red_handle_movement(keys_pressed, red)
+
+        rect_ai.x = yellow.x - SPACESHIP_HEIGHT * (RECT_MULTIPLY - 1) / 2
+        rect_ai.y = yellow.y - SPACESHIP_WIDTH * (RECT_MULTIPLY - 1) / 2
+
+        handle_bullets(yellow_bullets, red_bullets, yellow, red, rect_ai)
 
         winner_text = ""
         if red_health <= 0:
@@ -186,15 +226,8 @@ def main():
             draw_winner(winner_text)
             break
 
-        keys_pressed = pygame.key.get_pressed()
-
-        yellow_handle_movement(yellow, choose_direction)
-        red_handle_movement(keys_pressed, red)
-
-        handle_bullets(yellow_bullets, red_bullets, yellow, red)
-
         draw_window(red, yellow, red_bullets, yellow_bullets,
-                    red_health, yellow_health)
+                    red_health, yellow_health, rect_ai)
 
         last_shot += 1
         tick_number += 1
